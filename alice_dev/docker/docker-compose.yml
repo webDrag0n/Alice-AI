@@ -1,0 +1,82 @@
+version: '3.4'
+
+services:
+  weaviate:
+    command:
+    - --host
+    - 0.0.0.0
+    - --port
+    - '8080'
+    - --scheme
+    - http
+    image: semitechnologies/weaviate:1.27.0
+    ports:
+    - 8080:8080
+    - 50051:50051
+    volumes:
+    - weaviate_data:/var/lib/weaviate
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'text2vec-ollama'
+      ENABLE_MODULES: 'text2vec-ollama,text2vec-openai'
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  backend:
+    build:
+      context: ../backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend:/app
+      - ../soul:/soul
+      - ../memory:/memory
+      - ../config:/config
+      - ../logs:/logs
+      - ../storage:/storage
+      - ../workspace:/workspace
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - PYTHONPATH=/
+      - LOG_DIR=/logs
+      - CONTINUOUS_THINKING=true
+      - ENABLE_LLM_LOGS=false
+      
+      # =========================================
+      # Network Configuration (Docker Overrides)
+      # =========================================
+      # Override localhost defaults with Docker networking
+      # Using host.docker.internal to avoid DNS issues with service names in some environments
+      - WEAVIATE_HOST=host.docker.internal
+      - WEAVIATE_PORT=8080
+      - WEAVIATE_GRPC_HOST=host.docker.internal
+      - WEAVIATE_GRPC_PORT=50051
+      
+      # =========================================
+      # LLM Configuration
+      # =========================================
+      # Configuration has been moved to alice_dev/config/llm.json
+      # See alice_dev/config/llm.example.json for a template.
+      # You can still override specific settings here using environment variables if needed.
+      
+      # =========================================
+      # Vector Database Configuration
+      # =========================================
+    depends_on:
+      - weaviate
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ../frontend:/app
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install && npm run dev -- --host"
+
+volumes:
+  weaviate_data:

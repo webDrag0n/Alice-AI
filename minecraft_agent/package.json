@@ -1,0 +1,20 @@
+{
+  "name": "minecraft-agent-interface",
+  "version": "1.0.0",
+  "description": "Middle layer interface for Minecraft agent using Mineflayer",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "mineflayer": "^4.20.0",
+    "mineflayer-pathfinder": "^2.4.0",
+    "mineflayer-collectblock": "^1.5.0",
+    "mineflayer-tool": "^1.2.0",
+    "mineflayer-auto-eat": "^3.0.1",
+    "express": "^4.18.2",
+    "body-parser": "^1.20.2",
+    "vec3": "^0.1.8",
+    "minecraft-data": "^3.35.0"
+  }
+}

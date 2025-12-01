@@ -1,0 +1,457 @@
+# **📌 Sprint 1（PoC）目标：实现最小闭环智能体**
+
+> **单用户、单 Agent、最小能力闭环**：
+> 1）持续思考（internal loop）
+> 2）接收用户消息（observe）
+> 3）内部思维链生成（think）
+> 4）输出响应（write）
+> 5）通过 WebSocket 实时流式传输（stream）
+> 6）完成最小版人格参数（六感、七情、十五欲望、意感结构）
+> 7）具备可热插拔工具机制（下一 Sprint 扩展）
+
+此 Sprint 完成后，你将拥有：
+**一个可运行的最小原型智能体系统：前端输入 → WebSocket → Agent → 推理 → 流式输出 → 前端显示。**
+
+---
+
+# **📑 目录**
+
+1. **系统目标与范围**
+2. **整体架构（PoC 级别）**
+3. **数据流（observe → think → write → stream）**
+4. **核心模块说明**
+5. **人格参数最小实现（六感、七情、十五欲望、意感）**
+6. **技术选型（LiteLLM + LangGraph + Weaviate）**
+7. **WebSocket 通信规范**
+8. **开发任务拆分（Ticket 级别）**
+9. **文件结构（PoC）**
+10. **关键代码模板（可直接运行）**
+11. **测试用例与验收标准**
+
+---
+
+# **1. 系统目标与范围**
+
+本 Sprint 完成：
+
+* 一个前端用户与智能体的 WebSocket 双向通信
+* 后端可启动一个 Agent，并持续保持在线
+* Agent 在没有输入时可以持续执行“想事情（思维链池更新）”
+* Agent 收到用户输入后会触发：observe → think → write → stream
+* Agent 能够写入/读取 Weaviate 作为临时记忆
+* Agent 拥有最小人格参数（性格参数 + 情感状态 + 欲望）
+* Agent 的响应分为两种：
+
+  * **主动思考触发输出**
+  * **回复用户输入**
+
+---
+
+# **2. 整体架构（PoC）**
+
+```
+ User Frontend 
+      │
+ WebSocket
+      │
+ Backend Gateway (FastAPI)
+      │
+      ▼
+ Agent Runtime (LangGraph)
+ ┌─────────────────────────────┐
+ │ Perception Node (observe)   │
+ │ Thinking Node (think loop)  │
+ │ Output Node (write)         │
+ └─────────────────────────────┘
+      │
+ LiteLLM → LLM  (GPT、Claude、Llama)
+      │
+      ▼
+ Weaviate Memory Store
+```
+
+---
+
+# **3. 数据流（observe → think → write → stream）**
+
+### **3.1 observe**
+
+* 接收用户消息
+* 写入短期记忆（Working Memory）
+* 触发主流程
+
+### **3.2 think**
+
+* 用人格参数 + 当前上下文 + 记忆 → 推理
+* 更新“思维链池（Chain-of-thought scratchpad）”
+* 更新七情（anger、joy … 等）
+* 更新十五欲望（curiosity、social desire…）
+* 更新意感（人生目标/短期目标等）
+
+### **3.3 write**
+
+* 根据推理结果生成输出
+* 以 chunk 流式输出给 WebSocket 客户端
+
+### **3.4 stream**
+
+* WebSocket `send_text(chunk)`
+* 完成后发送结束标记
+
+---
+
+# **4. 核心模块说明**
+
+| 模块                            | 职责                           |
+| ----------------------------- | ---------------------------- |
+| **Agent Persona Manager**     | 管理性格、七情、十五欲望、意感              |
+| **Memory Manager (Weaviate)** | 插入记忆、相似搜索                    |
+| **LangGraph Runtime**         | 将 observe→think→write 建成 DAG |
+| **Thinking Loop Manager**     | 在无输入时自动思考                    |
+| **WebSocket Session Manager** | 每个用户维持自己的 Agent 实例           |
+| **LiteLLM Provider**          | 统一向各种 LLM 调用                 |
+
+---
+
+# **5. 人格参数最小实现（PoC）**
+
+## **5.1 六感**
+
+| 感觉     | 在 PoC 中的表现               |
+| ------ | ------------------------ |
+| 视觉     | （未来）图片到文本接口；当前模拟：无       |
+| 听觉     | WebSocket 文本输入           |
+| 触觉     | （未来）机器人接口；当前设为默认值        |
+| 味觉/嗅觉  | 暂无，留接口                   |
+| **意感** | *核心：目标、内在状态、自我叙述、思维链池动态* |
+
+### **意感（意志系统）组成**
+
+* `life_goal`: 例：活得有意义、帮助用户
+* `long_term_goal`: 例：变得更聪明、协助用户项目
+* `short_term_goal`: 例：回答这个问题、完成当前任务
+* `thinking_pool`: 最近 3–10 条 CoT scratchpad
+* `self_monologue`: “正在想 …”
+
+---
+
+## **5.2 七情（情绪维度）**
+
+* joy
+* anger
+* sorrow
+* fear
+* love
+* hate
+* desire（中性情绪）
+
+每一项 ∈ [0, 1]
+PoC 中更新方式：按 prompt 动态调整。
+
+---
+
+## **5.3 十五欲望（PoC 版）**
+
+常见心理学模型总结如下（PoC 版实际使用 0–1 浮点数）：
+
+* curiosity（求知欲）
+* social_connect（社交欲）
+* achievement（成就欲）
+* autonomy（自主欲）
+* bonding（亲密欲）
+* competence（能力提升欲）
+* exploration（探索欲）
+* safety（安全欲）
+* order（秩序欲）
+* novelty（新奇欲）
+* influence（影响力欲）
+* play（玩耍欲）
+* rest（休息欲）
+* stability（稳定欲）
+* expression（表达欲）
+
+行为生成时，作为推理输入之一。
+
+---
+
+# **6. 技术选型**
+
+| 组件           | 选型                                       |
+| ------------ | ---------------------------------------- |
+| LLM 层        | **LiteLLM**（统一接口）                        |
+| Agent 图框架    | **LangGraph**                            |
+| 向量数据库        | **Weaviate**（本地 docker）                  |
+| API 网关 & 后端  | **FastAPI**                              |
+| WebSocket 连接 | FastAPI + Uvicorn                        |
+| Embed 模型     | `text-embedding-3-large`（或选 open-source） |
+
+---
+
+# **7. WebSocket 通信规范**
+
+### **7.1 建立连接**
+
+`/ws/{user_id}`
+
+### **7.2 客户端 → 服务端**
+
+```json
+{
+  "type": "user_message",
+  "content": "你好，你是谁？"
+}
+```
+
+### **7.3 服务端 → 客户端 stream chunk**
+
+```json
+{
+  "type": "agent_stream",
+  "chunk": "你好，我是你的智能体，"
+}
+```
+
+结束标记：
+
+```json
+{
+  "type": "agent_stream_end"
+}
+```
+
+---
+
+# **8. 开发任务拆分（可直接放进 Jira / Linear）**
+
+---
+
+## **Sprint 1 — Ticket List**
+
+### **T1 – 初始化项目结构（FastAPI + LangGraph）**
+
+* 创建仓库
+* 初始化依赖
+* 创建基础文件夹结构
+
+---
+
+### **T2 – WebSocket 服务端实现**
+
+* `/ws/{user_id}`
+* 转发用户消息到 Agent Runtime
+* Agent 输出流式回推 WebSocket
+
+---
+
+### **T3 – Agent Runtime 基础框架（LangGraph）**
+
+* 创建 Node：observe、think、write
+* 实现 LangGraph DAG
+* 初始化 Agent session
+
+---
+
+### **T4 – LiteLLM 客户端集成**
+
+* 实现 LLM 调用 wrapper
+* 支持 stream
+
+---
+
+### **T5 – Weaviate 内存实现（PoC）**
+
+* 写入短期 memory
+* 简单相似搜索
+* 初始化 schema：MemoryItem
+
+---
+
+### **T6 – 人格参数管理器（PersonaManager）**
+
+* 定义六感
+* 定义七情变量
+* 定义十五欲望
+* 定义意感结构（目标、思维池）
+
+---
+
+### **T7 – Agent Thinking Loop（后台自思考）**
+
+* Timer 触发
+* 空闲时执行 think → write
+* 主动输出到前端
+
+---
+
+### **T8 – 整体集成与调试**
+
+* WebSocket 与 LangGraph 通信
+* LLM 工作
+* Weaviate 存储正常
+* 实现最小闭环
+
+---
+
+### **T9 – 最终测试**
+
+* 用户输入测试
+* Agent 自我思考测试
+* 流式输出稳定性
+* 内存写入/读出验证
+
+---
+
+# **9. 文件结构（PoC）**
+
+```
+poc-agent/
+│
+├─ backend/
+│   ├─ main.py
+│   ├─ websocket_manager.py
+│   ├─ agent_runtime/
+│   │   ├─ graph.py
+│   │   ├─ nodes/
+│   │   │   ├─ observe.py
+│   │   │   ├─ think.py
+│   │   │   ├─ write.py
+│   │   └─ persona.py
+│   ├─ memory/
+│   │   ├─ weaviate_client.py
+│   │   └─ schema.py
+│   ├─ llm/
+│   │   └─ litellm_client.py
+│   └─ utils/
+│       └─ logger.py
+│
+├─ docker/
+│   └─ docker-compose-weaviate.yaml
+│
+└─ README.md
+```
+
+---
+
+# **10. 关键代码模板（可直接运行）**
+
+下面是 PoC 可直接运行级别代码片段（你可复制到 AI 编程工具生成完整代码）。
+
+---
+
+## **10.1 WebSocket 服务端（FastAPI）**
+
+```python
+from fastapi import FastAPI, WebSocket
+from agent_runtime.graph import agent_manager
+
+app = FastAPI()
+
+@app.websocket("/ws/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str):
+    await websocket.accept()
+    agent = agent_manager.get_agent(user_id)
+
+    while True:
+        data = await websocket.receive_text()
+        await agent.on_user_message(data, websocket)
+```
+
+---
+
+## **10.2 LangGraph DAG（最简）**
+
+```python
+from langgraph.graph import StateGraph, END
+
+def create_agent_graph(agent):
+    graph = StateGraph()
+
+    graph.add_node("observe", agent.observe)
+    graph.add_node("think", agent.think)
+    graph.add_node("write", agent.write)
+
+    graph.add_edge("observe", "think")
+    graph.add_edge("think", "write")
+    graph.add_edge("write", END)
+
+    return graph.compile()
+```
+
+---
+
+## **10.3 PersonaManager（七情/意感/欲望框架）**
+
+```python
+class PersonaManager:
+    def __init__(self):
+        self.emotions = {
+            "joy": 0.2,
+            "anger": 0.0,
+            "sorrow": 0.1,
+            "fear": 0.1,
+            "love": 0.3,
+            "hate": 0.0,
+            "desire": 0.3
+        }
+
+        self.desires = {
+            "curiosity": 0.6,
+            "social_connect": 0.4,
+            "achievement": 0.5,
+            "autonomy": 0.4,
+            "bonding": 0.3,
+            "competence": 0.5,
+            "exploration": 0.5,
+            "safety": 0.2,
+            "order": 0.2,
+            "novelty": 0.5,
+            "influence": 0.3,
+            "play": 0.4,
+            "rest": 0.3,
+            "stability": 0.2,
+            "expression": 0.5
+        }
+
+        self.intent = {
+            "life_goal": "帮助用户、有意义地存在",
+            "long_term_goal": "变得更聪明、更有用",
+            "short_term_goal": "完成当前对话任务",
+            "thinking_pool": [],
+            "self_monologue": ""
+        }
+```
+
+---
+
+## **10.4 Thinking Loop（主动思考）**
+
+```python
+async def background_thinking(agent, websocket):
+    while True:
+        await asyncio.sleep(5)
+        # only think when idle
+        if agent.idle:
+            response = await agent.graph.invoke({"type": "idle"})
+            for chunk in response.output:
+                await websocket.send_text(chunk)
+```
+
+---
+
+# **11. 测试与验收标准**
+
+### **功能验收**
+
+* [x] WebSocket 可以建立与断开
+* [x] 用户发送消息 → Agent 回复
+* [x] 回复为流式 chunk 输出
+* [x] Agent 空闲时自动思考并“主动发送消息”
+* [x] Weaviate 能够写入/查询
+* [x] 人格参数参与推理（可见差异）
+* [x] 多用户能独立启动各自 Agent
+
+### **性能验收**
+
+* 单次响应 < 2 秒开始流
+* 思考 Loop 不阻塞主响应
+* WebSocket 不掉线 10 分钟

@@ -1,0 +1,14 @@
+{
+    "LLM_PROVIDER": "ollama",
+    "OLLAMA_BASE_URL": "http://host.docker.internal:11434",
+    "OLLAMA_API_KEY": "mock-key",
+    "OLLAMA_MODEL_MAIN": "ollama/qwen3:14b",
+    "OLLAMA_MODEL_PERCEPTION": "ollama/qwen3:14b",
+    "OPENAI_BASE_URL": "https://api.deepseek.com/v1",
+    "OPENAI_API_KEY": "",
+    "OPENAI_MODEL_MAIN": "deepseek-chat",
+    "OPENAI_MODEL_PERCEPTION": "deepseek-chat",
+    "VECTORIZER_PROVIDER": "ollama",
+    "OLLAMA_EMBEDDING_MODEL": "nomic-embed-text",
+    "OPENAI_EMBEDDING_MODEL": "text-embedding-3-small"
+}

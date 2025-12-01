@@ -1,0 +1,8 @@
+{
+  "host": "localhost",
+  "port": 25565,
+  "username": "AliceBot",
+  "password": "",
+  "auth": "offline",
+  "version": "1.20.1"
+}
