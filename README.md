@@ -10,6 +10,8 @@ Alice AI is designed to simulate a digital entity that goes beyond simple reques
 - **Long-term Memory**: Vector-based storage for episodic and semantic recall.
 - **Tool Use**: A flexible action registry for interacting with the digital and virtual worlds.
 
+![Architecture](docs/images/architecture.png)
+
 ## ✨ Feature Highlights
 
 Here is a glimpse of Alice's capabilities. She is a complex system with many more features waiting for you to explore!
